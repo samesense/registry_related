@@ -1,0 +1,20 @@
+{
+    "__default__" :
+    {
+        "h_vmem" : "50G",
+        "mem_free" : "20G",
+        "m_mem_free" : "15G"
+    },
+    "demultiplex" :
+    {
+        "h_vmem" : "100G",
+        "mem_free" : "55G",
+        "m_mem_free" : "40G"
+    },
+    "gzip_files" :
+    {
+        "h_vmem" : "30G",
+        "mem_free" : "10G",
+        "m_mem_free" : "6G"
+    }
+}
