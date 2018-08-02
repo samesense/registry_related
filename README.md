@@ -1,6 +1,6 @@
 # registry_related
 
-From [sample registry](http://reslnmbiomea01.research.chop.edu/registry/), generate the config file for [demultiplex](https://github.com/zhaoc1/dnabc_sunbeam).
+From [sample registry](http://reslnmbiomea01.research.chop.edu/registry/), generate the config file for demultiplex using [dnabc_sunbeam](https://github.com/zhaoc1/dnabc_sunbeam).
 
 ## Create conda environment
 ```
