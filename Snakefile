@@ -29,8 +29,8 @@ def read_samples_from_barcodes(barcode):
         samples.append(line.split('\t')[0])
     return(samples)
 
-print(config['barcodes'])
-BARCODE_FP = "/scr1/users/zhaoc1/dynamic/configs.files.20180719/" + config["barcodes"]
+#print(config['barcodes'])
+BARCODE_FP = config["barcodes"]
 LANES = list(config["lane_num"])
 SAMPLE_IDS = read_samples_from_barcodes(BARCODE_FP)
 
