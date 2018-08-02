@@ -1,0 +1,12 @@
+# directory for the incoming data: we never touch this!
+raw_data_fp: /mnt/isilon/microbiome
+lane_num: ""
+ 
+project_dir: "/scr1/users/zhaoc1/project"
+barcodes: "barcodes.txt"
+threads: 1
+
+output:
+    dnabc: dnabc_results
+
+admins: zhaocy.dut@gmail.com

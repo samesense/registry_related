@@ -1,0 +1,9 @@
+channels:
+  - bioconda
+  - conda-forge
+  - eclarke
+dependencies:
+  - snakemake=4.8.1
+  - ruamel.yaml
+  - biopython
+  - semantic_version
