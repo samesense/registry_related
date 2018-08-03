@@ -1,4 +1,4 @@
-"""Make config files by accession."""
+"""Make config files by accession and run name (ex Tobacco 14 Shotgun)."""
 import os
 import sys
 import collections
@@ -153,9 +153,11 @@ def parse_accession_info(row):
 def use_accession_and_lane(row, accession, lane):
     run = row[6].split()[1]
     if 'faulty' in row[6]:
-        print('reject', accession)
         return False
     if '160901_D00728_0028_BC9W1KANXX' == accession and run == '5':
+        return False
+    if 'Tobacco whole' in row[-2]:
+        # no data for Tobacco whole genome C. diff yet
         return False
     return True
 
@@ -165,8 +167,8 @@ def mk_barcodes(c, sql_query, fq_path):
     for row in c:
         sample_name = row[1]
         barcode_seq = row[2]
-        if row[-1] == fq_path:
-            barcodes[sample_name] = barcode_seq.replace("-", "")
+        this_fq_path = [x for x in row if '.gz' in str(x)][0]
+        assert row[9] == this_fq_path
     return barcodes
 
 def write_barcodes(barcodes, out_file):
@@ -174,18 +176,20 @@ def write_barcodes(barcodes, out_file):
         for key, value in barcodes.items():
             file.write("%s\t%s\n" % (key, value))
 
-def print_configs(project_dir, experiment, accession_to_lane, accession_to_data_dir, barcodes):
-    """one config per accession"""
-    for accession in accession_to_lane:
+def print_configs(project_dir, experiment, key_to_lane, key_to_data_dir, barcodes):
+    """one config per key (accession + '__' + runNameNoSpaces)"""
+    barcode_files = []
+    for key in key_to_lane:
         #print(accession)
-        new_config_file = "dnabc_config_%s.txt" % (accession, )
-        project_dir_fp = os.path.join(args.project_dir, "dynamic", experiment, accession)
-        barcode_file = os.path.join(project_dir, 'barcodes.%s.txt' % (accession,))
-        write_barcodes(barcodes, barcode_file)
+        new_config_file = "dnabc_config_%s.txt" % (key, )
+        project_dir_fp = os.path.join(args.project_dir, "dynamic", experiment, key)
+        barcode_file = os.path.join(project_dir, 'barcodes.%s.txt' % (key, ))
+        write_barcodes(barcodes[key], barcode_file)
+        barcode_files.append(barcode_file)
         new = dict(
             [
-                ("raw_data_fp", accession_to_data_dir[accession]),
-                ("lane_num", ''.join([str(x) for x in accession_to_lane[accession]])),
+                ("raw_data_fp", key_to_data_dir[key]),
+                ("lane_num", ''.join([str(x) for x in key_to_lane[key]])),
                 ("project_fp", project_dir_fp),
                 ("project_dir", project_dir),
                 ("barcodes", barcode_file),
@@ -199,35 +203,61 @@ def print_configs(project_dir, experiment, accession_to_lane, accession_to_data_
         config = _update_dict(config, new)
         with open(new_config_file, "w") as out:
             dump(config, out)
+    return barcode_files
+
+def init_dict():
+    return defaultdict(int)
+
+def check_barcodes(barcode_files):
+    """Count number of barcode names by run name.
+       If a barcode names appears more than three times
+       for a run name, there's a problem.
+    """
+    name_counts = defaultdict(init_dict)
+    for afile in barcode_files:
+        run_name = afile.split('__')[1].split('.')[0]
+        with open(afile) as f:
+            for line in f:
+                bc_name, _ = line.strip().split('\t')
+                name_counts[run_name][bc_name] += 1
+
+    with open('barcode_test', 'w') as fout:
+        for run_name in name_counts:
+            for bc_name in name_counts[run_name]:
+                if name_counts[run_name][bc_name] > 1:
+                    print('\t'.join([str(x) for x in (run_name, bc_name, name_counts[run_name][bc_name])]), file=fout)
 
 def mk_multiple_configs(project_dir, experiment, c, conn):
+    """key is accession + __ runNameNoSpaces"""
+
     sql_query = "%" + experiment + " %"
     c.execute("SELECT * FROM runs WHERE comment like ?", (sql_query,))
 
-    accession_to_lane, accession_to_data_dir = defaultdict(set), {}
-    accession_to_lane_queries = defaultdict(list)
+    key_to_lane, key_to_data_dir = defaultdict(set), {}
+    key_to_lane_queries = defaultdict(list)
+    key_to_accession = {}
     barcodes = {}
     for row in c:
         accession, data_dir, lane = parse_accession_info(row)
-        if accession == '170424_D00727_0029_ACA2VDANXX':
-            print('yo1')
-
         if use_accession_and_lane(row, accession, lane):
-            if accession == '170424_D00727_0029_ACA2VDANXX':
-                print('yo')
-   #print('use', accession)
-            #print(accession + '\t' + str(lane) + '\t' + data_dir)
-            accession_to_lane[accession].add(lane)
-            accession_to_data_dir[accession] = data_dir
+            run_name = row[-2]
+            use_run_name = run_name.replace(' ', '')
+            if 'Tobacco 8 Shotgun and FARMM5 redos' == run_name:
+                use_run_name = 'Tobacco8Shotgun'
 
-            # second query here
-            sql_query = "%" + experiment + " " + str(lane) + " %"
-            fq_path = row[6]
-            accession_to_lane_queries[accession].append((fq_path, sql_query))
-    for accession in accession_to_lane_queries:
-        for fq_path, sql_query in accession_to_lane_queries[accession]:
-            barcodes[accession] = mk_barcodes(c, sql_query, fq_path)
-    print_configs(project_dir, experiment, accession_to_lane, accession_to_data_dir, barcodes)
+            key = accession + '__' + use_run_name
+            key_to_lane[key].add(lane)
+            key_to_data_dir[key] = data_dir
+            key_to_accession[key] = accession
+            sql_query = "%" + run_name + "%"
+            fq_path = [x for x in row if '.gz' in str(x)][0]
+            assert fq_path == row[5]
+            key_to_lane_queries[key].append((fq_path, sql_query))
+    for key in key_to_lane_queries:
+        for fq_path, sql_query in key_to_lane_queries[key]:
+            barcodes[key] = mk_barcodes(c, sql_query, fq_path)
+    barcode_files = print_configs(project_dir, experiment, key_to_lane, key_to_data_dir, barcodes)
+    check_barcodes(barcode_files)
 
 def main(args):
     run_num = args.run_num
