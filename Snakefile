@@ -58,23 +58,21 @@ def mk_input_for_copy_file(wildcards):
     if os.path.exists(test_path):
        return test_path
 
-rule copy_file:
-    input:
-        mk_input_for_copy_file
-        #config["raw_data_fp"] + "/Undetermined_S0_L00{lane}_{rp}_001.fastq.gz"
-        #config["raw_data_fp"] + "_L00{lane}/Undetermined_S0_L00{lane}_{rp}_001.fastq.gz"
-    output:
-        temp(config["project_fp"] + "/" + "Undetermined_S0_L00{lane}_{rp}_001.fastq.gz")
-    params:
-        config["project_fp"]
-    shell:
-        """
-        cp {input[0]} {params[0]}
-        """
+# rule copy_file:
+#     input:
+#         mk_input_for_copy_file
+#     output:
+#         temp(config["project_fp"] + "/" + "Undetermined_S0_L00{lane}_{rp}_001.fastq.gz")
+#     params:
+#         config["project_fp"]
+#     shell:
+#         """
+#         cp {input[0]} {params[0]}
+#         """
 
 rule gunzip_file:
     input:
-        config["project_fp"] + "/" + "Undetermined_S0_L00{lane}_{rp}_001.fastq.gz"
+        mk_input_for_copy_file #    config["project_fp"] + "/" + "Undetermined_S0_L00{lane}_{rp}_001.fastq.gz"
     output:
         temp(config["project_fp"] + "/" + "Undetermined_S0_L00{lane}_{rp}_001.fastq")
     shell:
