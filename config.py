@@ -48,12 +48,12 @@ def handle_diff_dir_lanes(run_num, data_uri, data_uris):
     return data_uri, lanes
 
 
-def mk_data_path(sql_fifth_col):
+def mk_data_path(data_uri):
     """return
         /mnt/isilon/microbiome/raw_data/170424_D00727_0029_ACA2VDANXX or
         /mnt/isilon/microbiome/Hiseq02/160901_D00728_0028_BC9W1KANXX/Data/Intensities/BaseCalls
     """
-    uri = os.path.dirname(sql_fifth_col)
+    uri = os.path.dirname(data_uri)
     if "_L00" in uri:
         uri = uri.rsplit("_L00")[0]
     if uri.startswith("Hiseq01") or uri.startswith("Hiseq02"):
@@ -154,6 +154,9 @@ def parse_accession_info(row):
 
 
 def use_accession_and_lane(row, accession, lane):
+    """Return True if this run and lane will be processed.
+       Use this to exclude bad runs.
+    """
     comment = row['comment']
     run = comment.split()[1]
     if "faulty" in comment:
@@ -166,16 +169,16 @@ def use_accession_and_lane(row, accession, lane):
     return True
 
 
-def mk_barcodes(c, sql_query, fq_path):
-    c.execute("SELECT * FROM runs_samples WHERE run_comment like ?", (sql_query,))
+def mk_barcodes(c, sql_query, fq_path, col_names):
+    c.execute('SELECT * FROM runs_samples WHERE run_comment=="{}" AND data_uri=="{}"'.format(sql_query, fq_path))
     barcodes = dict()
-    for row in c:
-        sample_name = row[1]
-        barcode_seq = row[2]
-        this_fq_path = [x for x in row if ".gz" in str(x)][0]
-        assert row[9] == this_fq_path
-        if this_fq_path == fq_path:
-            barcodes[sample_name] = barcode_seq.replace("-", "")
+    for db_row in c:
+        row = {col:val for col, val in zip(col_names, db_row)}
+        barcode_seq = row['barcode_sequence']
+        this_fq_path = row['data_uri']
+        sample_name = row['sample_name']
+        barcodes[sample_name] = barcode_seq.replace("-", "")
+    assert len(barcodes) > 0
     return barcodes
 
 
@@ -258,7 +261,7 @@ def check_barcodes(barcode_files):
                     )
 
 
-def mk_multiple_configs(project_dir, experiment, c, conn, run_table_cols):
+def mk_multiple_configs(project_dir, experiment, c, conn, run_table_cols, run_samples_table_cols):
     """ Mk multiple snakemake configs for an experiment.
         Check that each run and barcode appear no more than twice.
 
@@ -291,28 +294,34 @@ def mk_multiple_configs(project_dir, experiment, c, conn, run_table_cols):
             key_to_lane[key].add(lane)
             key_to_data_dir[key] = data_dir
             key_to_accession[key] = accession
-            sql_query = "%" + run_name + "%"
             fq_path = row['data_uri']
-            key_to_lane_queries[key].append((fq_path, sql_query))
+            key_to_lane_queries[key].append((fq_path, run_name))
     for key in key_to_lane_queries:
         for fq_path, sql_query in key_to_lane_queries[key]:
-            barcodes[key] = mk_barcodes(c, sql_query, fq_path)
+            barcodes[key] = mk_barcodes(c, sql_query, fq_path, run_samples_table_cols)
     barcode_files = print_configs(
         project_dir, experiment, key_to_lane, key_to_data_dir, barcodes
     )
     check_barcodes(barcode_files)
 
 
+def get_sql_col_names(c):
+    c.execute('PRAGMA TABLE_INFO(runs)')
+    run_names= [x[1] for x in c.fetchall()]
+
+    c.execute('PRAGMA TABLE_INFO(runs_samples)')
+    runs_samples_names = [x[1] for x in c.fetchall()]
+
+    return run_names, runs_samples_names
+
 def main(args):
     run_num = args.run_num
     conn = sqlite3.connect(args.db)
     c = conn.cursor()
-
-    c.execute('PRAGMA TABLE_INFO(runs)')
-    run_table_cols = [x[1] for x in c.fetchall()]
+    run_names, runs_samples_names = get_sql_col_names(c)
 
     if run_num == "0":
-        mk_multiple_configs(args.project_dir, args.exp, c, conn, run_table_cols)
+        mk_multiple_configs(args.project_dir, args.exp, c, conn, run_names, runs_samples_names)
     else:
         mk_one_config(args.project_dir, args.exp, run_num, c, conn)
 
