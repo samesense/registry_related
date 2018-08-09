@@ -47,14 +47,24 @@ rule all:
 
 rule all_dnabc:
     input:
-        expand(DNABC_FP + "/{sample}_{read}.fastq", sample=SAMPLE_IDS, read=["R1","R2"])
+        expand(DNABC_FP + "/{sample}_{read}.fastq.gz", sample=SAMPLE_IDS, read=["R1","R2"])
+
+def mk_input_for_copy_file(wildcards):
+    test_path = config["raw_data_fp"] + "/Undetermined_S0_L00%s_%s_001.fastq.gz" % (wildcards.lane, wildcards.rp)
+    if os.path.exists(test_path):
+       return test_path
+
+    test_path = config["raw_data_fp"] + "_L00%s/Undetermined_S0_L00%s_%s_001.fastq.gz" % (wildcards.lane, wildcards.lane, wildcards.rp)
+    if os.path.exists(test_path):
+       return test_path
 
 rule copy_file:
     input:
-        config["raw_data_fp"] + "/Undetermined_S0_L00{lane}_{rp}_001.fastq.gz"
+        mk_input_for_copy_file
+        #config["raw_data_fp"] + "/Undetermined_S0_L00{lane}_{rp}_001.fastq.gz"
         #config["raw_data_fp"] + "_L00{lane}/Undetermined_S0_L00{lane}_{rp}_001.fastq.gz"
     output:
-        config["project_fp"] + "/" + "Undetermined_S0_L00{lane}_{rp}_001.fastq.gz"
+        temp(config["project_fp"] + "/" + "Undetermined_S0_L00{lane}_{rp}_001.fastq.gz")
     params:
         config["project_fp"]
     shell:
@@ -66,7 +76,7 @@ rule gunzip_file:
     input:
         config["project_fp"] + "/" + "Undetermined_S0_L00{lane}_{rp}_001.fastq.gz"
     output:
-        config["project_fp"] + "/" + "Undetermined_S0_L00{lane}_{rp}_001.fastq"
+        temp(config["project_fp"] + "/" + "Undetermined_S0_L00{lane}_{rp}_001.fastq")
     shell:
        "gunzip -c {input[0]} > {output[0]}"
 
@@ -74,7 +84,7 @@ rule cat_R1s:
     input:
         expand(config["project_fp"] + "/" + "Undetermined_S0_L00{lane}_R1_001.fastq", lane=list(config["lane_num"]))
     output:
-        config["project_fp"] + "/" + "Undetermined_S0_L" + config["lane_num"] + "_R1_001.fastq"
+        temp(config["project_fp"] + "/" + "Undetermined_S0_L" + config["lane_num"] + "_R1_001.fastq")
     shell:
        "cat {input} > {output[0]}"
 
@@ -82,7 +92,7 @@ rule cat_R2s:
     input:
         expand(config["project_fp"] + "/" + "Undetermined_S0_L00{lane}_R2_001.fastq", lane=list(config["lane_num"]))
     output:
-        config["project_fp"] + "/" + "Undetermined_S0_L" + config["lane_num"] + "_R2_001.fastq"
+        temp(config["project_fp"] + "/" + "Undetermined_S0_L" + config["lane_num"] + "_R2_001.fastq")
     shell:
        "cat {input} > {output[0]}"
 
@@ -91,7 +101,7 @@ rule demultiplex:
         read1 = config["project_fp"] + "/Undetermined_S0_L" + config["lane_num"] + "_R1_001.fastq",
         read2 = config["project_fp"] + "/Undetermined_S0_L" + config["lane_num"] + "_R2_001.fastq"
     output:
-        TARGET_FPS
+        temp(TARGET_FPS)
     params:
         dnabc_summary = DNABC_FP + "/summary-dnabc.json"
     log: 
