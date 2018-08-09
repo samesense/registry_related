@@ -1,4 +1,8 @@
-"""Make config files by accession and run name (ex Tobacco 14 Shotgun)."""
+"""
+Make config files by accession and run name (ex Tobacco 14 Shotgun).
+Extract barcode from sample registry and generate config file for dnabc
+Chunyu Zhao 2018-07-17
+"""
 import os
 import sys
 import collections
@@ -8,9 +12,6 @@ import json
 import csv
 import argparse
 from collections import defaultdict
-
-# extract barcode from sample registry and generate config file for dnabc
-# Chunyu Zhao 2018-07-17
 
 
 def _update_dict(target, new):
@@ -54,16 +55,9 @@ def mk_data_path(sql_fifth_col):
     """
     uri = os.path.dirname(sql_fifth_col)
     if "_L00" in uri:
-        ## From run8 - now: another format...
-        ## I decide to move the `lane` information to snakemake
         uri = uri.rsplit("_L00")[0]
-        # url = os.path.dirname(sql_fifth_col)
-    # jelse:
-    #   uri = os.path.dirname(sql_fifth_col)
-
     if uri.startswith("Hiseq01") or uri.startswith("Hiseq02"):
         uri = os.path.join("/mnt/isilon/microbiome/", uri)
-
     return uri
 
 
@@ -147,8 +141,8 @@ def mk_one_config(project_dir, experiment, run_num, c, conn):
 
 
 def parse_accession_info(row):
-    lane = row[4]
-    acc = row[5]
+    lane = row['lane']
+    acc = row['data_uri']
     if "microbiome/raw_data/" in acc:
         acc = "_".join(acc.split("raw_data/")[1].split("/")[0].split("_")[:-1])
     elif "Data/Intensities" in acc:
@@ -156,16 +150,17 @@ def parse_accession_info(row):
     else:
         raise ValueError("Unrecognized data dir path")
 
-    return acc, mk_data_path(row[5]), lane
+    return acc, mk_data_path(row['data_uri']), lane
 
 
 def use_accession_and_lane(row, accession, lane):
-    run = row[6].split()[1]
-    if "faulty" in row[6]:
+    comment = row['comment']
+    run = comment.split()[1]
+    if "faulty" in comment:
         return False
     if "160901_D00728_0028_BC9W1KANXX" == accession and run == "5":
         return False
-    if "Tobacco whole" in row[-2]:
+    if "Tobacco whole" in comment:
         # no data for Tobacco whole genome C. diff yet
         return False
     return True
@@ -220,7 +215,7 @@ def print_configs(project_dir, experiment, key_to_lane, key_to_data_dir, barcode
             dump(config, out)
     with open("run_configs.sh", "w") as fout:
         for config_file in config_files:
-            cmd = "snakemake --configfile %s -s Snakefile -j25 all_dnabc" % (
+            cmd = "snakemake --configfile %s -s Snakefile -j50 all_dnabc" % (
                 config_file,
             )
             print(cmd, file=fout)
@@ -263,20 +258,31 @@ def check_barcodes(barcode_files):
                     )
 
 
-def mk_multiple_configs(project_dir, experiment, c, conn):
-    """key is accession + __ runNameNoSpaces"""
+def mk_multiple_configs(project_dir, experiment, c, conn, run_table_cols):
+    """ Mk multiple snakemake configs for an experiment.
+        Check that each run and barcode appear no more than twice.
 
+    Args:
+        project_dir: dir that will hold data
+        experiment: query name for experiment (ex Tobacco)
+        c: sqlite connection cursor
+        conn: sqlite connection
+    """
+
+    # look for any runs for this experiment
     sql_query = "%" + experiment + " %"
     c.execute("SELECT * FROM runs WHERE comment like ?", (sql_query,))
 
+    # key is accession + __ runNameNoSpaces
     key_to_lane, key_to_data_dir = defaultdict(set), {}
     key_to_lane_queries = defaultdict(list)
     key_to_accession = {}
     barcodes = {}
-    for row in c:
+    for db_row in c:
+        row = {col:val for col, val in zip(run_table_cols, db_row)}
         accession, data_dir, lane = parse_accession_info(row)
         if use_accession_and_lane(row, accession, lane):
-            run_name = row[-2]
+            run_name = row['comment']
             use_run_name = run_name.replace(" ", "")
             if "Tobacco 8 Shotgun and FARMM5 redos" == run_name:
                 use_run_name = "Tobacco8Shotgun"
@@ -286,8 +292,7 @@ def mk_multiple_configs(project_dir, experiment, c, conn):
             key_to_data_dir[key] = data_dir
             key_to_accession[key] = accession
             sql_query = "%" + run_name + "%"
-            fq_path = [x for x in row if ".gz" in str(x)][0]
-            assert fq_path == row[5]
+            fq_path = row['data_uri']
             key_to_lane_queries[key].append((fq_path, sql_query))
     for key in key_to_lane_queries:
         for fq_path, sql_query in key_to_lane_queries[key]:
@@ -303,14 +308,17 @@ def main(args):
     conn = sqlite3.connect(args.db)
     c = conn.cursor()
 
+    c.execute('PRAGMA TABLE_INFO(runs)')
+    run_table_cols = [x[1] for x in c.fetchall()]
+
     if run_num == "0":
-        mk_multiple_configs(args.project_dir, args.exp, c, conn)
+        mk_multiple_configs(args.project_dir, args.exp, c, conn, run_table_cols)
     else:
         mk_one_config(args.project_dir, args.exp, run_num, c, conn)
 
 
 if __name__ == "__main__":
-    desc = "Mk config for demultiplex."
+    desc = "Mk config for demultiplexing."
     ap = argparse.ArgumentParser(description=desc)
     ap.add_argument(
         "-n",
