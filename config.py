@@ -333,7 +333,7 @@ def main(args):
         )
     else:
         mk_one_config(args.project_dir, args.exp, run_num, c, conn)
-
+    conn.close()
 
 if __name__ == "__main__":
     desc = "Mk config for demultiplexing."
@@ -347,7 +347,7 @@ if __name__ == "__main__":
         default="0",
     )
     ap.add_argument(
-        "-e", "--exp", help="Experiment name", required=False, default="Tobacco"
+        "-e", "--exp", dest="exp", help="Experiment name", required=False, default="Tobacco"
     )
     ap.add_argument("-d", "--db", dest="db", help="Path to sql db", required=True)
     ap.add_argument(
