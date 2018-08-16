@@ -141,8 +141,8 @@ def mk_one_config(project_dir, experiment, run_num, c, conn):
 
 
 def parse_accession_info(row):
-    lane = row['lane']
-    acc = row['data_uri']
+    lane = row["lane"]
+    acc = row["data_uri"]
     if "microbiome/raw_data/" in acc:
         acc = "_".join(acc.split("raw_data/")[1].split("/")[0].split("_")[:-1])
     elif "Data/Intensities" in acc:
@@ -150,14 +150,14 @@ def parse_accession_info(row):
     else:
         raise ValueError("Unrecognized data dir path")
 
-    return acc, mk_data_path(row['data_uri']), lane
+    return acc, mk_data_path(row["data_uri"]), lane
 
 
 def use_accession_and_lane(row, accession, lane):
     """Return True if this run and lane will be processed.
        Use this to exclude bad runs.
     """
-    comment = row['comment']
+    comment = row["comment"]
     run = comment.split()[1]
     if "faulty" in comment:
         return False
@@ -170,13 +170,17 @@ def use_accession_and_lane(row, accession, lane):
 
 
 def mk_barcodes(c, sql_query, fq_path, col_names):
-    c.execute('SELECT * FROM runs_samples WHERE run_comment=="{}" AND data_uri=="{}"'.format(sql_query, fq_path))
+    c.execute(
+        'SELECT * FROM runs_samples WHERE run_comment=="{}" AND data_uri=="{}"'.format(
+            sql_query, fq_path
+        )
+    )
     barcodes = dict()
     for db_row in c:
-        row = {col:val for col, val in zip(col_names, db_row)}
-        barcode_seq = row['barcode_sequence']
-        this_fq_path = row['data_uri']
-        sample_name = row['sample_name']
+        row = {col: val for col, val in zip(col_names, db_row)}
+        barcode_seq = row["barcode_sequence"]
+        this_fq_path = row["data_uri"]
+        sample_name = row["sample_name"]
         barcodes[sample_name] = barcode_seq.replace("-", "")
     assert len(barcodes) > 0
     return barcodes
@@ -196,7 +200,7 @@ def print_configs(project_dir, experiment, key_to_lane, key_to_data_dir, barcode
         new_config_file = "dnabc_config_%s.txt" % (key,)
         config_files.append(new_config_file)
         project_dir_fp = os.path.join(args.project_dir, "dynamic", experiment, key)
-        barcode_file = os.path.join(project_dir, "barcodes.%s.txt" % (key,))
+        barcode_file = os.path.join(project_dir, "barcodes.{}.txt".format(key))
         write_barcodes(barcodes[key], barcode_file)
         barcode_files.append(barcode_file)
         new = dict(
@@ -218,8 +222,8 @@ def print_configs(project_dir, experiment, key_to_lane, key_to_data_dir, barcode
             dump(config, out)
     with open("run_configs.sh", "w") as fout:
         for config_file in config_files:
-            cmd = "snakemake --configfile %s -s Snakefile -j50 all_dnabc" % (
-                config_file,
+            cmd = "snakemake --configfile {} -s Snakefile.py -j 50 all_dnabc &".format(
+                config_file
             )
             print(cmd, file=fout)
     return barcode_files
@@ -261,7 +265,9 @@ def check_barcodes(barcode_files):
                     )
 
 
-def mk_multiple_configs(project_dir, experiment, c, conn, run_table_cols, run_samples_table_cols):
+def mk_multiple_configs(
+    project_dir, experiment, c, conn, run_table_cols, run_samples_table_cols
+):
     """ Mk multiple snakemake configs for an experiment.
         Check that each run and barcode appear no more than twice.
 
@@ -282,10 +288,10 @@ def mk_multiple_configs(project_dir, experiment, c, conn, run_table_cols, run_sa
     key_to_accession = {}
     barcodes = {}
     for db_row in c:
-        row = {col:val for col, val in zip(run_table_cols, db_row)}
+        row = {col: val for col, val in zip(run_table_cols, db_row)}
         accession, data_dir, lane = parse_accession_info(row)
         if use_accession_and_lane(row, accession, lane):
-            run_name = row['comment']
+            run_name = row["comment"]
             use_run_name = run_name.replace(" ", "")
             if "Tobacco 8 Shotgun and FARMM5 redos" == run_name:
                 use_run_name = "Tobacco8Shotgun"
@@ -294,7 +300,7 @@ def mk_multiple_configs(project_dir, experiment, c, conn, run_table_cols, run_sa
             key_to_lane[key].add(lane)
             key_to_data_dir[key] = data_dir
             key_to_accession[key] = accession
-            fq_path = row['data_uri']
+            fq_path = row["data_uri"]
             key_to_lane_queries[key].append((fq_path, run_name))
     for key in key_to_lane_queries:
         for fq_path, sql_query in key_to_lane_queries[key]:
@@ -306,13 +312,14 @@ def mk_multiple_configs(project_dir, experiment, c, conn, run_table_cols, run_sa
 
 
 def get_sql_col_names(c):
-    c.execute('PRAGMA TABLE_INFO(runs)')
-    run_names= [x[1] for x in c.fetchall()]
+    c.execute("PRAGMA TABLE_INFO(runs)")
+    run_names = [x[1] for x in c.fetchall()]
 
-    c.execute('PRAGMA TABLE_INFO(runs_samples)')
+    c.execute("PRAGMA TABLE_INFO(runs_samples)")
     runs_samples_names = [x[1] for x in c.fetchall()]
 
     return run_names, runs_samples_names
+
 
 def main(args):
     run_num = args.run_num
@@ -321,7 +328,9 @@ def main(args):
     run_names, runs_samples_names = get_sql_col_names(c)
 
     if run_num == "0":
-        mk_multiple_configs(args.project_dir, args.exp, c, conn, run_names, runs_samples_names)
+        mk_multiple_configs(
+            args.project_dir, args.exp, c, conn, run_names, runs_samples_names
+        )
     else:
         mk_one_config(args.project_dir, args.exp, run_num, c, conn)
 
