@@ -18,6 +18,14 @@ python config.py -n 9 -d /mnt/isilon/microbiome/registry_backup/core.db_20180627
 * Create one config for each accession in an experiment group (Ex Tobacco)
 ```
 python config.py -e Tobacco -d /mnt/isilon/microbiome/registry_backup/core.db_20180627 -p /home/evansj/me/projects/bittinger/dat
+
+# config.py will make run_configs.sh
+# use that to for Snakemake runs
+sh run_configs.sh
+
+# Collapse runs 14 and 15
+snakemake --configfile configs/combine14_config.json -s Snakefile_combine.py all_combine
+snakemake --configfile configs/combine15_config.json -s Snakefile_combine.py all_combine
 ```
 
 ## Notes
