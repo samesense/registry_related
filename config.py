@@ -161,8 +161,6 @@ def use_accession_and_lane(row, accession, lane):
     run = comment.split()[1]
     if "faulty" in comment:
         return False
-    if "160901_D00728_0028_BC9W1KANXX" == accession and run == "5":
-        return False
     if "Tobacco whole" in comment:
         # no data for Tobacco whole genome C. diff yet
         return False
