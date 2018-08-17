@@ -14,7 +14,7 @@ import shutil
 import yaml
 import subprocess
 import time
-import json 
+import json
 
 def read_samples_from_barcodes_json(barcode):
     with open(barcode) as file:
@@ -42,7 +42,7 @@ workdir: config["project_fp"]
 starttime = int(time.time())
 
 rule all:
-    input: 
+    input:
         expand(DNABC_FP + "/{sample}_{read}.fastq.gz", sample=SAMPLE_IDS, read=["R1","R2"])
 
 rule all_dnabc:
@@ -102,10 +102,8 @@ rule demultiplex:
         temp(TARGET_FPS)
     params:
         dnabc_summary = DNABC_FP + "/summary-dnabc.json"
-    log: 
+    log:
         DNABC_FP + "/dnabc.log"
-    threads:
-        config['threads']
     shell:
         """
         dnabc.py --forward-reads {input.read1} --reverse-reads {input.read2} \
