@@ -23,7 +23,8 @@ python config.py -e Tobacco -d /mnt/isilon/microbiome/registry_backup/core.db_20
 # use that to for Snakemake runs
 sh run_configs.sh
 
-# Collapse runs 14 and 15
+# Collapse runs 5, 14, and 15
+snakemake --configfile configs/combine5_config.json -s Snakefile_combine.py all_combine
 snakemake --configfile configs/combine14_config.json -s Snakefile_combine.py all_combine
 snakemake --configfile configs/combine15_config.json -s Snakefile_combine.py all_combine
 ```
