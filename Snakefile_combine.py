@@ -16,7 +16,7 @@ rule combine_fq:
     output:
         config['DATA_NEW'] + 'dnabc_results/{afile}.fastq.gz'
     shell:
-        "zcat {input} > {output}"
+        "zcat {input} | bgzip > {output}"
 
 FILES = mk_fq_prefix()
 rule all_combine:
